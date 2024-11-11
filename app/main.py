@@ -1,5 +1,7 @@
 import socket  # noqa: F401
 import select
+import datetime
+import math
 from app.redisParser import RedisParser
 
 
@@ -42,12 +44,17 @@ def main():
                     elif content[0].lower() == "ping":
                         notified_socket.sendall(b"+PONG\r\n")
                     elif content[0].lower() == "set":
-                        database[content[1]] = content[2]
+                        expire_time = math.inf
+                        current_time = datetime.datetime.now()
+                        if len(content) == 5 and content[3].lower() == 'px':
+                            expire_time = int(content[4]) * 1000
+                        database[content[1]] = [content[2], current_time, expire_time]
                         notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                     elif content[0].lower() == "get":
                         keyName = content[1]
-                        if keyName in database.keys():
-                            notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName])))
+                        current_time = datetime.datetime.now()
+                        if keyName in database.keys() and (current_time - database[keyName][1]).microseconds <= database[keyName][2]:
+                            notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
                         else:
                             notified_socket.sendall(str.encode(parser.to_resp_null()))
                     
