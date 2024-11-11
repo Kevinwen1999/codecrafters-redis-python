@@ -1,5 +1,6 @@
 import socket  # noqa: F401
 import select
+import redisParser
 
 
 def main():
@@ -12,6 +13,7 @@ def main():
     server_socket.setblocking(False)
     socket_list = [server_socket]
     clients = {}
+    parser = redisParser()
 
     while True:
         read_sockets, _, exception_sockets = select.select(socket_list, [], socket_list)
@@ -31,7 +33,11 @@ def main():
                     del clients[notified_socket]
                     notified_socket.close()
                     continue
-                notified_socket.sendall(b"+PONG\r\n")
+                content = parser.parse(data)
+                if type(content) is list:
+                    notified_socket.sendall(parser.to_resp_string(content[1]))
+                else:
+                    notified_socket.sendall(b"+PONG\r\n")
 
         for notified_socket in exception_sockets:
             socket_list.remove(notified_socket)
