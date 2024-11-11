@@ -13,6 +13,7 @@ def main():
     server_socket.setblocking(False)
     socket_list = [server_socket]
     clients = {}
+    database = {}
     parser = RedisParser()
 
     while True:
@@ -40,6 +41,15 @@ def main():
                         notified_socket.sendall(str.encode(parser.to_resp_string(content[1])))
                     elif content[0].lower() == "ping":
                         notified_socket.sendall(b"+PONG\r\n")
+                    elif content[0].lower() == "set":
+                        database[content[1]] = content[2]
+                        notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                    elif content[0].lower() == "get":
+                        keyName = content[1]
+                        if keyName in database.keys():
+                            notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName])))
+                        else:
+                            notified_socket.sendall(str.encode(parser.to_resp_null()))
                     
 
         for notified_socket in exception_sockets:
