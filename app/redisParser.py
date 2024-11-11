@@ -100,14 +100,14 @@ class RedisParser:
         else:
             # Simple String otherwise
             return f"+{data}\r\n" """
-        return b"${len(data)}\r\n{data}\r\n"
+        return f"${len(data)}\r\n{data}\r\n"
 
     def to_resp_integer(self, data):
-        return b":{data}\r\n"
+        return f":{data}\r\n"
 
     def to_resp_array(self, data):
         elements = ''.join([self.to_resp(element) for element in data])
-        return b"*{len(data)}\r\n{elements}"
+        return f"*{len(data)}\r\n{elements}"
 
     def to_resp_null(self):
         # Represents a null bulk string
@@ -115,4 +115,4 @@ class RedisParser:
 
     def to_resp_error(self, data):
         # Represents an error message
-        return b"-{str(data)}\r\n"
+        return f"-{str(data)}\r\n"

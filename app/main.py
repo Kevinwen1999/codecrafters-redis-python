@@ -1,6 +1,6 @@
 import socket  # noqa: F401
 import select
-from redisParser import RedisParser
+from app.redisParser import RedisParser
 
 
 def main():
@@ -35,9 +35,12 @@ def main():
                     continue
                 content = parser.parse(data)
                 if type(content) is list:
-                    notified_socket.sendall(parser.to_resp_string(content[1]))
-                else:
-                    notified_socket.sendall(b"+PONG\r\n")
+                    print(content)
+                    if content[0].lower() == "echo":
+                        notified_socket.sendall(str.encode(parser.to_resp_string(content[1])))
+                    elif content[0].lower() == "ping":
+                        notified_socket.sendall(b"+PONG\r\n")
+                    
 
         for notified_socket in exception_sockets:
             socket_list.remove(notified_socket)
