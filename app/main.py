@@ -1,6 +1,6 @@
 import socket  # noqa: F401
 import select
-import redisParser
+from redisParser import RedisParser
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
     server_socket.setblocking(False)
     socket_list = [server_socket]
     clients = {}
-    parser = redisParser()
+    parser = RedisParser()
 
     while True:
         read_sockets, _, exception_sockets = select.select(socket_list, [], socket_list)
