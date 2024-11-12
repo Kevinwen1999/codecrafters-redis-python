@@ -3,11 +3,39 @@ import select
 import datetime
 import math
 from app.redisParser import RedisParser
+import argparse
 
 
 def main():
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="Parse Redis file arguments")
+
+    # Define arguments
+    parser.add_argument(
+        '--dir', 
+        type=str, 
+        required=False,
+        help="Directory where Redis files are stored"
+    )
+    
+    parser.add_argument(
+        '--dbfilename', 
+        type=str, 
+        required=False,
+        help="Name of the Redis database file"
+    )
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Access the arguments
+    directory = args.dir
+    dbfilename = args.dbfilename
+    
+    print(f"Directory: {directory}")
+    print(f"DB Filename: {dbfilename}")
 
     # Uncomment this to pass the first stage
     #
@@ -57,6 +85,11 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
                         else:
                             notified_socket.sendall(str.encode(parser.to_resp_null()))
+                    elif content[0].lower() == 'config':
+                        if content[2].lower() == 'dir':
+                            notified_socket.sendall(str.encode(parser.to_resp_array(['dir', directory])))
+                        elif content[2].lower() == 'dbfilename':
+                            notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
                     
 
         for notified_socket in exception_sockets:
