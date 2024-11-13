@@ -1,4 +1,6 @@
 import struct
+from datetime import datetime, timedelta, MAXYEAR
+infinite_time = datetime(MAXYEAR - 1, 12, 31, 23, 59, 59, 999999)
 
 class RDBParser:
     def __init__(self, filename):
@@ -67,6 +69,7 @@ class RDBParser:
 
     def _parse_key_value(self, f):
         entry = {}
+        entry['expire'] = infinite_time
 
         expire_type = ord(f.peek(1)[:1])  # Peek at the next byte without consuming it
 

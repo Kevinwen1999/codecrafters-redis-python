@@ -1,11 +1,12 @@
 import socket  # noqa: F401
 import select
-import datetime
+from datetime import datetime, timedelta, MAXYEAR
 import math
 from app.redisParser import RedisParser
 from app.rdbReader import RDBParser
 import argparse
 
+infinite_time = datetime(MAXYEAR - 1, 1, 1, 23, 59, 59, 999999)
 
 def main():
     # You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -84,16 +85,21 @@ def main():
                     elif content[0].lower() == "ping":
                         notified_socket.sendall(b"+PONG\r\n")
                     elif content[0].lower() == "set":
-                        expire_time = math.inf
-                        current_time = datetime.datetime.now()
+                        expire_time = infinite_time
+                        current_time = datetime.now()
+                        print(current_time)
                         if len(content) == 5 and content[3].lower() == 'px':
-                            expire_time = int(content[4]) * 1000
-                        database[content[1]] = [content[2], current_time, expire_time]
+                            expire_time = datetime.now() + timedelta(microseconds=int(content[4]))
+                        print(expire_time)
+                        database[content[1]] = [content[2], expire_time]
                         notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                     elif content[0].lower() == "get":
                         keyName = content[1]
-                        current_time = datetime.datetime.now()
-                        if keyName in database.keys() and (current_time - database[keyName][1]).microseconds <= database[keyName][2]:
+                        current_time = datetime.now()
+                        print(current_time)
+                        print(database[keyName][1])
+                        print(current_time - database[keyName][1])
+                        if keyName in database.keys() and (current_time <= database[keyName][1] + timedelta(milliseconds=100)):
                             notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
                         else:
                             notified_socket.sendall(str.encode(parser.to_resp_null()))
