@@ -76,10 +76,10 @@ class RDBParser:
         # Optional expire information
         if expire_type == 0xFD:
             f.read(1)  # Consume the expiration marker byte
-            entry['expire'] = struct.unpack('<I', f.read(4))[0]  # Expire timestamp in seconds
+            entry['expire'] = datetime.fromtimestamp(struct.unpack('<I', f.read(4))[0])  # Expire timestamp in seconds
         elif expire_type == 0xFC:
             f.read(1)  # Consume the expiration marker byte
-            entry['expire'] = struct.unpack('<Q', f.read(8))[0]  # Expire timestamp in milliseconds
+            entry['expire'] = datetime.fromtimestamp(struct.unpack('<Q', f.read(8))[0] / 1000) # Expire timestamp in milliseconds
 
 
 
