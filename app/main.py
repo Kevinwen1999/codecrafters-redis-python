@@ -3,6 +3,7 @@ import select
 import datetime
 import math
 from app.redisParser import RedisParser
+from app.rdbReader import RDBParser
 import argparse
 
 
@@ -37,13 +38,24 @@ def main():
     print(f"Directory: {directory}")
     print(f"DB Filename: {dbfilename}")
 
-    # Uncomment this to pass the first stage
-    #
+    directory = "x" if directory is None else directory
+    dbfilename = "x" if dbfilename is None else dbfilename
+
+    dbReader = RDBParser(directory + '/' + dbfilename)
+    dbReader.parse()
+
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     server_socket.setblocking(False)
     socket_list = [server_socket]
     clients = {}
     database = {}
+    for db in dbReader.get_databases():
+        print(f"Database Index: {db['index']}")
+        for entry in db['hash_table']:
+            key = entry.get('key')
+            value = entry.get('value')
+            expire = entry.get('expire')
+            database[key] = [value, expire, expire]
     parser = RedisParser()
 
     while True:
@@ -90,6 +102,8 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_array(['dir', directory])))
                         elif content[2].lower() == 'dbfilename':
                             notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
+                    elif content[0].lower() == 'keys':
+                        notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
                     
 
         for notified_socket in exception_sockets:
