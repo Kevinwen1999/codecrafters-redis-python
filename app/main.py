@@ -29,23 +29,32 @@ def main():
         help="Name of the Redis database file"
     )
 
+    parser.add_argument(
+        '--port', 
+        type=int, 
+        required=False,
+        help="Number of port"
+    )
+
     # Parse the arguments
     args = parser.parse_args()
 
     # Access the arguments
     directory = args.dir
     dbfilename = args.dbfilename
+    port_number = args.port
     
     print(f"Directory: {directory}")
     print(f"DB Filename: {dbfilename}")
 
     directory = "x" if directory is None else directory
     dbfilename = "x" if dbfilename is None else dbfilename
+    port_number = 6379 if port_number is None else port_number
 
     dbReader = RDBParser(directory + '/' + dbfilename)
     dbReader.parse()
 
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    server_socket = socket.create_server(("localhost", port_number), reuse_port=True)
     server_socket.setblocking(False)
     socket_list = [server_socket]
     clients = {}
