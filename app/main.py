@@ -119,6 +119,8 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
                     elif content[0].lower() == 'keys':
                         notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
+                    elif content[0].lower() == 'info':
+                        notified_socket.sendall(str.encode(parser.to_resp_string("role:master")))
                     
 
         for notified_socket in exception_sockets:
