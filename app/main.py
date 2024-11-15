@@ -199,7 +199,7 @@ def main():
                     elif content[0].lower() == 'replconf':
                         notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                     elif content[0].lower() == 'psync':
-                        notified_socket.sendall(str.encode(parser.to_resp_simple_string("FULLRESYNC <REPL_ID> 0")))
+                        notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")))
 
                     
 
