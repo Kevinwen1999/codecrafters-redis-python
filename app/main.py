@@ -54,6 +54,8 @@ def main():
     master_host = None
     master_port = None
     current_role = "master"
+    replication_id = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+    replication_offset = 0
 
     
     print(f"Directory: {directory}")
@@ -136,8 +138,13 @@ def main():
                     elif content[0].lower() == 'keys':
                         notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
                     elif content[0].lower() == 'info':
-                        notified_socket.sendall(str.encode(parser.to_resp_string("role:" + current_role)))
-                        
+                        if content[1].lower() == 'replication':
+                            response = "role:" + current_role + "\n"
+                            if (current_role == "master"):
+                                response += "master_replid:" + replication_id + "\n"
+                                response += "master_repl_offset:" + str(replication_offset) + "\n"
+                            notified_socket.sendall(str.encode(parser.to_resp_string(response)))
+
                     
 
         for notified_socket in exception_sockets:
