@@ -101,6 +101,9 @@ class RedisParser:
             # Simple String otherwise
             return f"+{data}\r\n" """
         return f"${len(data)}\r\n{data}\r\n"
+    
+    def to_resp_simple_string(self, data):
+        return f"+{data}\r\n"
 
     def to_resp_integer(self, data):
         return f":{data}\r\n"

@@ -92,6 +92,10 @@ def main():
             response = master_socket.recv(1024)
             print(f"Response from master: {response.decode().strip()}")
 
+            master_socket.sendall(str.encode(parser.to_resp_array(['PSYNC', '?', '-1'])))
+            response = master_socket.recv(1024)
+            print(f"Response from master: {response.decode().strip()}")
+
 
             """ # Periodically send PING commands
             while True:
@@ -194,6 +198,8 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_string(response)))
                     elif content[0].lower() == 'replconf':
                         notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                    elif content[0].lower() == 'psync':
+                        notified_socket.sendall(str.encode(parser.to_resp_simple_string("FULLRESYNC <REPL_ID> 0")))
 
                     
 
