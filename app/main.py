@@ -5,6 +5,7 @@ import math
 from app.redisParser import RedisParser
 from app.rdbReader import RDBParser
 import argparse
+import threading
 
 infinite_time = datetime(MAXYEAR - 1, 1, 1, 23, 59, 59, 999999)
 
@@ -64,10 +65,45 @@ def main():
     directory = "x" if directory is None else directory
     dbfilename = "x" if dbfilename is None else dbfilename
     port_number = 6379 if port_number is None else port_number
+
+
+
+    def handle_replica(master_host, master_port):
+        """
+        Connects the replica to the master and sends periodic PING commands.
+        """
+        try:
+            # Create a socket connection to the master
+            master_socket = socket.create_connection((master_host, master_port))
+            print(f"Connected to master at {master_host}:{master_port}")
+
+            # Send initial PING
+            master_socket.sendall(b"*1\r\n$4\r\nPING\r\n")
+            response = master_socket.recv(1024)
+            print(f"Response from master: {response.decode().strip()}")
+
+            """ # Periodically send PING commands
+            while True:
+                # Send PING command every 10 seconds
+                threading.Event().wait(10)
+                master_socket.sendall(b"*1\r\n$4\r\nPING\r\n")
+                response = master_socket.recv(1024)
+                print(f"Response from master: {response.decode().strip()}") """
+
+        except Exception as e:
+            print(f"Error connecting to master: {e}")
+
+
+
     if replicaOption is not None:
         master_host, master_port = args.replicaof.split()
         master_port = int(master_port)
         current_role = "slave"
+
+        # Start a new thread to handle the replica connection
+        replica_thread = threading.Thread(target=handle_replica, args=(master_host, master_port))
+        replica_thread.daemon = True  # Daemon thread to stop when the main program exits
+        replica_thread.start()
 
     dbReader = RDBParser(directory + '/' + dbfilename)
     dbReader.parse()
@@ -88,6 +124,7 @@ def main():
 
     while True:
         read_sockets, _, exception_sockets = select.select(socket_list, [], socket_list)
+
 
         for notified_socket in read_sockets:
             # new client socket:
