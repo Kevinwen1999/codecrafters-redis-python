@@ -66,6 +66,8 @@ def main():
     dbfilename = "x" if dbfilename is None else dbfilename
     port_number = 6379 if port_number is None else port_number
 
+    parser = RedisParser()
+
 
 
     def handle_replica(master_host, master_port):
@@ -81,6 +83,15 @@ def main():
             master_socket.sendall(b"*1\r\n$4\r\nPING\r\n")
             response = master_socket.recv(1024)
             print(f"Response from master: {response.decode().strip()}")
+
+            master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'listening-port', str(port_number)])))
+            response = master_socket.recv(1024)
+            print(f"Response from master: {response.decode().strip()}")
+
+            master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'capa', 'psync2'])))
+            response = master_socket.recv(1024)
+            print(f"Response from master: {response.decode().strip()}")
+
 
             """ # Periodically send PING commands
             while True:
@@ -120,7 +131,7 @@ def main():
             value = entry.get('value')
             expire = entry.get('expire')
             database[key] = [value, expire, expire]
-    parser = RedisParser()
+    
 
     while True:
         read_sockets, _, exception_sockets = select.select(socket_list, [], socket_list)
@@ -181,6 +192,8 @@ def main():
                                 response += "master_replid:" + replication_id + "\n"
                                 response += "master_repl_offset:" + str(replication_offset) + "\n"
                             notified_socket.sendall(str.encode(parser.to_resp_string(response)))
+                    elif content[0].lower() == 'replconf':
+                        notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
 
                     
 
