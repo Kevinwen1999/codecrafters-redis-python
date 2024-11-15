@@ -36,6 +36,13 @@ def main():
         help="Number of port"
     )
 
+    parser.add_argument(
+        '--replicaof', 
+        type=str, 
+        required=False,
+        help="Number of port"
+    )
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -43,6 +50,11 @@ def main():
     directory = args.dir
     dbfilename = args.dbfilename
     port_number = args.port
+    replicaOption = args.replicaof
+    master_host = None
+    master_port = None
+    current_role = "master"
+
     
     print(f"Directory: {directory}")
     print(f"DB Filename: {dbfilename}")
@@ -50,6 +62,10 @@ def main():
     directory = "x" if directory is None else directory
     dbfilename = "x" if dbfilename is None else dbfilename
     port_number = 6379 if port_number is None else port_number
+    if replicaOption is not None:
+        master_host, master_port = args.replicaof.split()
+        master_port = int(master_port)
+        current_role = "slave"
 
     dbReader = RDBParser(directory + '/' + dbfilename)
     dbReader.parse()
@@ -120,7 +136,8 @@ def main():
                     elif content[0].lower() == 'keys':
                         notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
                     elif content[0].lower() == 'info':
-                        notified_socket.sendall(str.encode(parser.to_resp_string("role:master")))
+                        notified_socket.sendall(str.encode(parser.to_resp_string("role:" + current_role)))
+                        
                     
 
         for notified_socket in exception_sockets:
