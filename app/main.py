@@ -250,7 +250,7 @@ def main():
                                 replicas.append(notified_socket)
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                         elif content[0].lower() == 'psync':
-                            notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB)
+                            notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB())
 
 
                     
