@@ -135,7 +135,6 @@ def main():
                                 if (replica_bytecount < 0):
                                     replica_bytecount = 0
                                 master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'ACK', str(replica_bytecount)])))
-
                         replica_bytecount += len(str.encode(parser.to_resp_array(content)))
 
                         # Ignore other commands silently
@@ -264,6 +263,8 @@ def main():
                         elif content[0].lower() == 'psync':
                             notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB())
                             # notified_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'GETACK', '*'])))
+                        elif content[0].lower() == 'wait':
+                            notified_socket.sendall(str.encode(parser.to_resp_integer(0)))
                             
 
 
