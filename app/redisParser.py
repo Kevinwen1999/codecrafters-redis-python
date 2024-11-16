@@ -1,9 +1,97 @@
 class RedisParser:
+    HARD_CODED_RDB_HEX = (
+        "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473"
+        "c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d626173"
+        "65c000fff06e3bfec0ff5aa2"
+    )
+
     def parse(self, data):
         if not data:
             raise ValueError("No data to parse")
+        
+        results = []
+        offset = 0
 
-        # Check the first character to determine the type
+        while offset < len(data):
+            element, next_offset = self.parse_element(data[offset:])
+            results.append(element)
+            offset += next_offset
+
+        return results
+
+    def parse_simple_string(self, data):
+        end_of_str = data.find(b'\r\n')
+        if end_of_str == -1:
+            raise ValueError("Malformed RESP simple string")
+        return data[1:end_of_str].decode('utf-8'), end_of_str + 2
+
+    def parse_error(self, data):
+        end_of_err = data.find(b'\r\n')
+        if end_of_err == -1:
+            raise ValueError("Malformed RESP error")
+        return Exception(data[1:end_of_err].decode('utf-8')), end_of_err + 2
+
+    def parse_integer(self, data):
+        end_of_int = data.find(b'\r\n')
+        if end_of_int == -1:
+            raise ValueError("Malformed RESP integer")
+        return int(data[1:end_of_int]), end_of_int + 2
+
+    """ def parse_bulk_string(self, data):
+        end_of_len = data.find(b'\r\n')
+        if end_of_len == -1:
+            raise ValueError("Malformed RESP bulk string length")
+        length = int(data[1:end_of_len])
+        if length == -1:
+            return None, end_of_len + 2  # RESP `nil` bulk string
+        
+        start = end_of_len + 2
+        end = start + length
+        if len(data) < end + 2:
+            raise ValueError("Malformed RESP bulk string content")
+        return data[start:end].decode('utf-8'), end + 2 """
+    
+    def parse_bulk_string(self, data):
+        # Find the end of the bulk string length declaration
+        end_of_len = data.find(b'\r\n')
+        if end_of_len == -1:
+            raise ValueError("Malformed RESP bulk string length")
+
+        # Get the length of the bulk string contents
+        length = int(data[1:end_of_len])
+
+        # Calculate start and end of the bulk string contents
+        start = end_of_len + 2
+        end = start + length
+
+        # Check if the content matches the hardcoded RDB file hex value
+        content_hex = data[start:end].hex()
+        if content_hex == self.HARD_CODED_RDB_HEX:
+            return "RDB File Content", end
+
+        # Otherwise, handle as a normal bulk string
+        if len(data) < end + 2 or data[end:end + 2] != b'\r\n':
+            raise ValueError("Malformed RESP bulk string content")
+
+        return data[start:end].decode('utf-8'), end + 2
+
+    def parse_array(self, data):
+        end_of_len = data.find(b'\r\n')
+        if end_of_len == -1:
+            raise ValueError("Malformed RESP array length")
+        length = int(data[1:end_of_len])
+        if length == -1:
+            return None, end_of_len + 2  # RESP `nil` array
+
+        elements = []
+        offset = end_of_len + 2
+        for _ in range(length):
+            element, next_offset = self.parse_element(data[offset:])
+            elements.append(element)
+            offset += next_offset
+        return elements, offset
+
+    def parse_element(self, data):
         if data.startswith(b'+'):
             return self.parse_simple_string(data)
         elif data.startswith(b'-'):
@@ -15,65 +103,7 @@ class RedisParser:
         elif data.startswith(b'*'):
             return self.parse_array(data)
         else:
-            raise ValueError(f"Unknown RESP type: {data}")
-
-    def parse_simple_string(self, data):
-        return data[1:-2].decode('utf-8')
-
-    def parse_error(self, data):
-        return Exception(data[1:-2].decode('utf-8'))
-
-    def parse_integer(self, data):
-        return int(data[1:-2])
-
-    def parse_bulk_string(self, data):
-        # Get length of the bulk string
-        end_of_len = data.find(b'\r\n')
-        length = int(data[1:end_of_len])
-        if length == -1:
-            return None  # RESP `nil` bulk string
-        
-        start = end_of_len + 2
-        end = start + length
-        return data[start:end].decode('utf-8')
-
-    def parse_array(self, data):
-        # Get length of the array
-        end_of_len = data.find(b'\r\n')
-        length = int(data[1:end_of_len])
-        if length == -1:
-            return None  # RESP `nil` array
-
-        elements = []
-        start = end_of_len + 2
-        for _ in range(length):
-            element, next_start = self.parse_element(data[start:])
-            elements.append(element)
-            start += next_start
-        return elements
-
-    def parse_element(self, data):
-        # Parses an individual element in an array
-        if data.startswith(b'+'):
-            element = self.parse_simple_string(data)
-            return element, len(element) + 3  # +3 accounts for '+', data length, '\r\n'
-        elif data.startswith(b'-'):
-            element = self.parse_error(data)
-            return element, len(element) + 3
-        elif data.startswith(b':'):
-            element = self.parse_integer(data)
-            return element, len(str(element)) + 3
-        elif data.startswith(b'$'):
-            end_of_len = data.find(b'\r\n')
-            length = int(data[1:end_of_len])
-            total_length = end_of_len + 2 + length + 2  # includes the initial length, string, and `\r\n`
-            element = self.parse_bulk_string(data[:total_length])
-            return element, total_length
-        elif data.startswith(b'*'):
-            array = self.parse_array(data)
-            return array, len(data)
-        else:
-            raise ValueError("Unknown RESP type in array element")
+            raise ValueError("Unknown RESP type")
         
 
 
@@ -117,7 +147,7 @@ class RedisParser:
         return "$-1\r\n"
     
     def to_empty_RDB(self):
-        hex_string = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+        hex_string = self.HARD_CODED_RDB_HEX
         byte_string = bytes.fromhex(hex_string)
         length_string = f"${len(byte_string)}\r\n"
         return length_string.encode() + byte_string

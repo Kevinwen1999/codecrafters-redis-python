@@ -2,6 +2,7 @@ import socket  # noqa: F401
 import select
 from datetime import datetime, timedelta, MAXYEAR
 import math
+import time
 from app.redisParser import RedisParser
 from app.rdbReader import RDBParser
 import argparse
@@ -67,6 +68,9 @@ def main():
     port_number = 6379 if port_number is None else port_number
 
     parser = RedisParser()
+    replicas = []
+    clients = {}
+    database = {}
 
 
 
@@ -77,6 +81,7 @@ def main():
         try:
             # Create a socket connection to the master
             master_socket = socket.create_connection((master_host, master_port))
+            
             print(f"Connected to master at {master_host}:{master_port}")
 
             # Send initial PING
@@ -94,33 +99,37 @@ def main():
 
             master_socket.sendall(str.encode(parser.to_resp_array(['PSYNC', '?', '-1'])))
             response = master_socket.recv(1024)
-            print(f"Response from master: {response.decode().strip()}")
-            response = master_socket.recv(1024)
-            print(f"Response from master: {response.decode().strip()}")
+            print(f"Response from master: {response}")
+
 
 
             while True:
-                # Read data from the master
-                data = master_socket.recv(1024)
-                if not data:
-                    print("Master disconnected.")
-                    break
+                try:
+                    # Read data from the master
+                    data = master_socket.recv(1024)
+                    if not data:
+                        print("Master disconnected.")
+                        break
+                    print(f"Received from master: {data}")
 
-                content = parser.parse(data)
-                print(f"Received from master: {content}")
+                    commands = parser.parse(data)
+                    for content in commands:
 
-                # Process write commands (e.g., SET, DEL)
-                if content[0].lower() == "set":
-                    key, value = content[1], content[2]
-                    expire_time = infinite_time
-                    if len(content) == 5 and content[3].lower() == "px":
-                        expire_time = datetime.now() + timedelta(milliseconds=int(content[4]))
-                    database[key] = [value, expire_time]
-                elif content[0].lower() == "del":
-                    key = content[1]
-                    if key in database:
-                        del database[key]
-                # Ignore other commands silently
+                        # Process write commands (e.g., SET, DEL)
+                        if content[0].lower() == "set":
+                            key, value = content[1], content[2]
+                            expire_time = infinite_time
+                            if len(content) == 5 and content[3].lower() == "px":
+                                expire_time = datetime.now() + timedelta(milliseconds=int(content[4]))
+                            database[key] = [value, expire_time]
+                        elif content[0].lower() == "del":
+                            key = content[1]
+                            if key in database:
+                                del database[key]
+                        # Ignore other commands silently
+                except Exception as e:
+                    print(f"Error processing command from master: {e}")
+
 
             """ # Periodically send PING commands
             while True:
@@ -151,16 +160,14 @@ def main():
     server_socket = socket.create_server(("localhost", port_number), reuse_port=True)
     server_socket.setblocking(False)
     socket_list = [server_socket]
-    replicas = []
-    clients = {}
-    database = {}
+    
     for db in dbReader.get_databases():
         print(f"Database Index: {db['index']}")
         for entry in db['hash_table']:
             key = entry.get('key')
             value = entry.get('value')
             expire = entry.get('expire')
-            database[key] = [value, expire, expire]
+            database[key] = [value, expire]
     
 
     while True:
@@ -182,66 +189,71 @@ def main():
                     del clients[notified_socket]
                     notified_socket.close()
                     continue
-                content = parser.parse(data)
-                if type(content) is list:
-                    print(content)
-                    
-                    if content[0].lower() in {"set", "del"}:  # Write commands
-                        # Propagate the command to replicas
-                        resp_command = parser.to_resp_array(content)
-                        for replica_socket in replicas:
-                            try:
-                                replica_socket.sendall(str.encode(resp_command))
-                            except Exception as e:
-                                print(f"Error sending to replica: {e}")
-                                replicas.remove(replica_socket)  # Remove failed replicas
+                commands = parser.parse(data)
+                for content in commands:
+                    if type(content) is list:
+                        print(content)
+                        
+                        if content[0].lower() in {"set", "del"}:  # Write commands
+                            # Propagate the command to replicas
+                            resp_command = parser.to_resp_array(content)
+                            print(f"sending {content} to {len(replicas)} replicas")
+                            for replica_socket in replicas:
+                                try:
+                                    replica_socket.sendall(str.encode(resp_command))
+                                except Exception as e:
+                                    print(f"Error sending to replica: {e}")
+                                    replicas.remove(replica_socket)  # Remove failed replicas
 
-                    if content[0].lower() == "echo":
-                        notified_socket.sendall(str.encode(parser.to_resp_string(content[1])))
-                    elif content[0].lower() == "ping":
-                        notified_socket.sendall(b"+PONG\r\n")
-                    elif content[0].lower() == "set":
-                        expire_time = infinite_time
-                        current_time = datetime.now()
-                        print(current_time)
-                        if len(content) == 5 and content[3].lower() == 'px':
-                            expire_time = datetime.now() + timedelta(microseconds=int(content[4]))
-                        print(expire_time)
-                        database[content[1]] = [content[2], expire_time]
-                        notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
-                    elif content[0].lower() == "get":
-                        keyName = content[1]
-                        current_time = datetime.now()
-                        print(current_time)
-                        print(database[keyName][1])
-                        print(current_time - database[keyName][1])
-                        if keyName in database.keys() and (current_time <= database[keyName][1] + timedelta(milliseconds=100)):
-                            notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
-                        else:
-                            notified_socket.sendall(str.encode(parser.to_resp_null()))
-                    elif content[0].lower() == 'config':
-                        if content[2].lower() == 'dir':
-                            notified_socket.sendall(str.encode(parser.to_resp_array(['dir', directory])))
-                        elif content[2].lower() == 'dbfilename':
-                            notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
-                    elif content[0].lower() == 'keys':
-                        notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
-                    elif content[0].lower() == 'info':
-                        if content[1].lower() == 'replication':
-                            response = "role:" + current_role + "\n"
-                            if (current_role == "master"):
-                                response += "master_replid:" + replication_id + "\n"
-                                response += "master_repl_offset:" + str(replication_offset) + "\n"
-                            notified_socket.sendall(str.encode(parser.to_resp_string(response)))
-                    elif content[0].lower() == 'replconf':
-                        if content[1].lower() == 'listening-port':
-                            listening_port_number = int(content[2])
-                            # slave_socket = socket.create_connection(("localhost", listening_port_number))
-                            replicas.append(notified_socket)
-                        notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
-                    elif content[0].lower() == 'psync':
-                        notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")))
-                        notified_socket.sendall(parser.to_empty_RDB())
+                        if content[0].lower() == "echo":
+                            notified_socket.sendall(str.encode(parser.to_resp_string(content[1])))
+                        elif content[0].lower() == "ping":
+                            notified_socket.sendall(b"+PONG\r\n")
+                        elif content[0].lower() == "set":
+                            expire_time = infinite_time
+                            current_time = datetime.now()
+                            print(current_time)
+                            if len(content) == 5 and content[3].lower() == 'px':
+                                expire_time = datetime.now() + timedelta(microseconds=int(content[4]))
+                            print(expire_time)
+                            database[content[1]] = [content[2], expire_time]
+                            notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                        elif content[0].lower() == "get":
+                            keyName = content[1]
+                            current_time = datetime.now()
+                            """ print(current_time)
+                            print(database[keyName][1])
+                            print(current_time - database[keyName][1]) """
+                            if keyName in database.keys() and (current_time <= database[keyName][1] + timedelta(milliseconds=100)):
+                                notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
+                            else:
+                                notified_socket.sendall(str.encode(parser.to_resp_null()))
+                        elif content[0].lower() == 'config':
+                            if content[2].lower() == 'dir':
+                                notified_socket.sendall(str.encode(parser.to_resp_array(['dir', directory])))
+                            elif content[2].lower() == 'dbfilename':
+                                notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
+                        elif content[0].lower() == 'keys':
+                            notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
+                        elif content[0].lower() == 'info':
+                            if content[1].lower() == 'replication':
+                                response = "role:" + current_role + "\n"
+                                if (current_role == "master"):
+                                    response += "master_replid:" + replication_id + "\n"
+                                    response += "master_repl_offset:" + str(replication_offset) + "\n"
+                                notified_socket.sendall(str.encode(parser.to_resp_string(response)))
+                        elif content[0].lower() == 'replconf':
+                            if content[1].lower() == 'listening-port':
+                                listening_port_number = int(content[2])
+                                # slave_socket = socket.create_connection(("localhost", listening_port_number))
+                                print(f"Appended slave with port number {listening_port_number}")
+                                replicas.append(notified_socket)
+                            notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                        elif content[0].lower() == 'psync':
+                            notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")))
+
+                            notified_socket.sendall(parser.to_empty_RDB())
+
 
                     
 
