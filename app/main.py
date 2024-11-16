@@ -264,7 +264,7 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB())
                             # notified_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'GETACK', '*'])))
                         elif content[0].lower() == 'wait':
-                            notified_socket.sendall(str.encode(parser.to_resp_integer(0)))
+                            notified_socket.sendall(str.encode(parser.to_resp_integer(len(replicas))))
                             
 
 
