@@ -71,6 +71,7 @@ def main():
     replicas = []
     clients = {}
     database = {}
+    
 
 
 
@@ -78,6 +79,9 @@ def main():
         """
         Connects the replica to the master and sends periodic PING commands.
         """
+
+        replica_bytecount = -999999
+
         try:
             # Create a socket connection to the master
             master_socket = socket.create_connection((master_host, master_port))
@@ -128,7 +132,11 @@ def main():
                                 del database[key]
                         elif content[0].lower() == 'replconf':
                             if content[1].lower() == 'getack':
-                                master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'ACK', '0'])))
+                                if (replica_bytecount < 0):
+                                    replica_bytecount = 0
+                                master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'ACK', str(replica_bytecount)])))
+
+                        replica_bytecount += len(str.encode(parser.to_resp_array(content)))
 
                         # Ignore other commands silently
                 except Exception as e:
