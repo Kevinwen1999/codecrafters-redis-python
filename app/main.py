@@ -98,8 +98,8 @@ def main():
             print(f"Response from master: {response.decode().strip()}")
 
             master_socket.sendall(str.encode(parser.to_resp_array(['PSYNC', '?', '-1'])))
-            response = master_socket.recv(1024)
-            print(f"Response from master: {response}")
+            """ response = master_socket.recv(1024)
+            print(f"Response from master: {response}") """
 
 
 
@@ -126,6 +126,10 @@ def main():
                             key = content[1]
                             if key in database:
                                 del database[key]
+                        elif content[0].lower() == 'replconf':
+                            if content[1].lower() == 'getack':
+                                master_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'ACK', '0'])))
+
                         # Ignore other commands silently
                 except Exception as e:
                     print(f"Error processing command from master: {e}")
@@ -251,6 +255,9 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                         elif content[0].lower() == 'psync':
                             notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB())
+                            # notified_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'GETACK', '*'])))
+                            
+
 
 
                     
