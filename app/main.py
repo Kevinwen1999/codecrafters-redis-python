@@ -229,6 +229,7 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_string(content[1])))
                         elif content[0].lower() == "ping":
                             notified_socket.sendall(b"+PONG\r\n")
+
                         elif content[0].lower() == "set":
                             expire_time = infinite_time
                             current_time = datetime.now()
@@ -242,7 +243,6 @@ def main():
                             with pending_writes_lock:
                                 pending_writes += 1
                             
-                            
                         elif content[0].lower() == "get":
                             keyName = content[1]
                             current_time = datetime.now()
@@ -253,13 +253,16 @@ def main():
                                 notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
                             else:
                                 notified_socket.sendall(str.encode(parser.to_resp_null()))
+
                         elif content[0].lower() == 'config':
                             if content[2].lower() == 'dir':
                                 notified_socket.sendall(str.encode(parser.to_resp_array(['dir', directory])))
                             elif content[2].lower() == 'dbfilename':
                                 notified_socket.sendall(str.encode(parser.to_resp_array(['dbfilename', dbfilename])))
+
                         elif content[0].lower() == 'keys':
                             notified_socket.sendall(str.encode(parser.to_resp_array(database.keys())))
+
                         elif content[0].lower() == 'info':
                             if content[1].lower() == 'replication':
                                 response = "role:" + current_role + "\n"
@@ -267,6 +270,7 @@ def main():
                                     response += "master_replid:" + replication_id + "\n"
                                     response += "master_repl_offset:" + str(replication_offset) + "\n"
                                 notified_socket.sendall(str.encode(parser.to_resp_string(response)))
+
                         elif content[0].lower() == 'replconf':
                             if content[1].lower() == 'listening-port':
                                 listening_port_number = int(content[2])
@@ -325,7 +329,12 @@ def main():
                             with ack_lock:
                                 notified_socket.sendall(str.encode(parser.to_resp_integer(len(acknowledged_replicas))))
                             
-
+                        elif content[0].lower() == 'type':
+                            keyName = content[1]
+                            if keyName in database.keys() :
+                                notified_socket.sendall(str.encode(parser.to_resp_string("string")))
+                            else:
+                                notified_socket.sendall(str.encode(parser.to_resp_string("none")))
 
 
                     
