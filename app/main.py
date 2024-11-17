@@ -80,7 +80,7 @@ def main():
     replicas = []
     clients = {}
     database = {}
-    
+    streams = {}
 
 
 
@@ -333,8 +333,23 @@ def main():
                             keyName = content[1]
                             if keyName in database.keys() :
                                 notified_socket.sendall(str.encode(parser.to_resp_string("string")))
+                            elif keyName in streams.keys():
+                                notified_socket.sendall(str.encode(parser.to_resp_string("stream")))
                             else:
                                 notified_socket.sendall(str.encode(parser.to_resp_string("none")))
+
+                        elif content[0].lower() == 'xadd':
+                            total_pairs = int((len(content) - 3) / 2)
+                            key_name = content[1]
+                            id = content[2]
+                            if not key_name in streams.keys():
+                                streams[key_name] = {}
+                                streams[key_name]["id"] = id 
+                            for i in range(total_pairs):
+                                key = content[3 + 2*i]
+                                value = content[3 + 2*i + 1]
+                                streams[key_name][key] = value
+                            notified_socket.sendall(str.encode(parser.to_resp_string(id)))
 
 
                     
