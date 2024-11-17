@@ -7,6 +7,13 @@ from app.redisParser import RedisParser
 from app.rdbReader import RDBParser
 import argparse
 import threading
+from time import time
+from threading import Lock
+
+# Track acknowledgment responses from replicas
+acknowledged_replicas = set()  # A set of replica sockets that have acknowledged
+ack_lock = Lock()  # Lock for thread-safe access
+
 
 infinite_time = datetime(MAXYEAR - 1, 1, 1, 23, 59, 59, 999999)
 
@@ -15,6 +22,8 @@ def main():
     print("Logs from your program will appear here!")
     # Create an argument parser
     args_parser = argparse.ArgumentParser(description="Parse Redis file arguments")
+    pending_writes = 0  # Track the number of pending write operations
+    pending_writes_lock = Lock()  # Lock for thread-safe updates
 
     # Define arguments
     args_parser.add_argument(
@@ -223,12 +232,17 @@ def main():
                         elif content[0].lower() == "set":
                             expire_time = infinite_time
                             current_time = datetime.now()
-                            print(current_time)
+                            # (current_time)
                             if len(content) == 5 and content[3].lower() == 'px':
                                 expire_time = datetime.now() + timedelta(microseconds=int(content[4]))
-                            print(expire_time)
+                            # print(expire_time)
                             database[content[1]] = [content[2], expire_time]
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                            # Increment pending writes
+                            with pending_writes_lock:
+                                pending_writes += 1
+                            
+                            
                         elif content[0].lower() == "get":
                             keyName = content[1]
                             current_time = datetime.now()
@@ -262,9 +276,54 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
                         elif content[0].lower() == 'psync':
                             notified_socket.sendall(str.encode(parser.to_resp_simple_string(f"FULLRESYNC {replication_id} 0")) + parser.to_empty_RDB())
-                            # notified_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'GETACK', '*'])))
+                            
                         elif content[0].lower() == 'wait':
-                            notified_socket.sendall(str.encode(parser.to_resp_integer(len(replicas))))
+                            # Parse arguments: num_replicas and timeout in milliseconds
+                            num_replicas = int(content[1])
+                            timeout_ms = int(content[2])
+
+                            with pending_writes_lock:
+                                if pending_writes == 0:
+                                    # No writes pending, return 0 immediately
+                                    notified_socket.sendall(str.encode(parser.to_resp_integer(len(replicas))))
+                                    continue
+
+                            # Clear previous acknowledgments
+                            with ack_lock:
+                                acknowledged_replicas.clear()
+
+                            # Send ACK command to all replicas
+                            for replica_socket in replicas:
+                                try:
+                                    replica_socket.sendall(str.encode(parser.to_resp_array(['REPLCONF', 'GETACK', '*'])))  # Send ACK command
+                                except Exception as e:
+                                    print(f"Failed to send ACK to replica: {e}")
+
+                            # Wait for acknowledgments or timeout
+                            start_time = time()
+                            elapsed_time = 0
+
+                            while elapsed_time < timeout_ms / 1000:
+                                read_sockets, _, _ = select.select(replicas, [], [], 0.1)  # Check for incoming ACKs
+
+                                for sock in read_sockets:
+                                    data = sock.recv(1024)
+                                    content = parser.parse(data)[0]
+                                    print(f"Content receoved from read sockets : {content}")
+                                    if content[1].lower() == 'ack':
+                                        with ack_lock:
+                                            acknowledged_replicas.add(sock)
+
+                                # Check if we have enough acknowledgments
+                                with ack_lock:
+                                    if len(acknowledged_replicas) >= num_replicas:
+                                        break
+
+                                elapsed_time = time() - start_time
+
+                            # Respond with the number of replicas that acknowledged
+                            with ack_lock:
+                                notified_socket.sendall(str.encode(parser.to_resp_integer(len(acknowledged_replicas))))
                             
 
 
