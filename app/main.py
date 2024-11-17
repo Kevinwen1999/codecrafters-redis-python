@@ -81,6 +81,7 @@ def main():
     clients = {}
     database = {}
     streams = {}
+    last_stream_id = [0, 0]
 
 
 
@@ -342,13 +343,33 @@ def main():
                             total_pairs = int((len(content) - 3) / 2)
                             key_name = content[1]
                             id = content[2]
+
+                            # validate id:
+                            id_split = id.split('-')
+                            print(f"Current ID : {id_split}")
+                            id_split = [int(val) for val in id_split]
+                            if id_split[0] <= 0 and id_split[1] <= 0:
+                                notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD must be greater than 0-0"))) 
+                                continue
+                            
                             if not key_name in streams.keys():
                                 streams[key_name] = {}
-                                streams[key_name]["id"] = id 
+                                streams[key_name][id] = {}
+                            else:
+                                last_id_split = list(streams[key_name].keys())[-1].split('-')
+                                print(f"LAST ID : {last_id_split}")
+                                last_id_split = [int(val) for val in last_id_split]
+                                
+                                if last_id_split[0] > id_split[0] or (last_id_split[0] == id_split[0] and last_id_split[1] >= id_split[1]):
+                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD is equal or smaller than the target stream top item"))) 
+                                    continue
+
+                            streams[key_name][id] = {} 
+                            
                             for i in range(total_pairs):
                                 key = content[3 + 2*i]
                                 value = content[3 + 2*i + 1]
-                                streams[key_name][key] = value
+                                streams[key_name][id][key] = value
                             notified_socket.sendall(str.encode(parser.to_resp_string(id)))
 
 
