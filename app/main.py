@@ -345,39 +345,44 @@ def main():
                             id = content[2]
                             auto_gen = False
 
-                            # validate id:
-                            id_split = id.split('-')
-                            if id_split[1] == '*':
-                                auto_gen = True
-                            print(f"Current ID : {id_split}")
+                            if id == '*':
+                                current_unix_time_ms = int(time() * 1000)
+                                id = f"{str(current_unix_time_ms)}-0"
+                                if not key_name in streams.keys():
+                                    streams[key_name] = {}
+                            else:
+                                id_split = id.split('-')
+                                if id_split[1] == '*':
+                                    auto_gen = True
+                                print(f"Current ID : {id_split}")
 
-                            if not auto_gen:
-                                id_split_int = [int(val) for val in id_split]
-                                if id_split_int[0] <= 0 and id_split_int[1] <= 0:
-                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD must be greater than 0-0"))) 
-                                    continue
-                                if key_name in streams.keys():
-                                    last_id_split = list(streams[key_name].keys())[-1].split('-')
-                                    last_id_split = [int(val) for val in last_id_split]
-                                    
-                                    if last_id_split[0] > id_split_int[0] or (last_id_split[0] == id_split_int[0] and last_id_split[1] >= id_split_int[1]):
-                                        notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD is equal or smaller than the target stream top item"))) 
+                                if not auto_gen:
+                                    id_split_int = [int(val) for val in id_split]
+                                    if id_split_int[0] <= 0 and id_split_int[1] <= 0:
+                                        notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD must be greater than 0-0"))) 
                                         continue
-                            
-                            if not key_name in streams.keys():
-                                streams[key_name] = {}
-                            
-                            if auto_gen:
-                                key_seconds = [x.split('-')[0] for x in list(streams[key_name].keys())]
-                                if id_split[0] not in key_seconds:
-                                    id_split[1] = '1' if id_split[0] == '0' else '0'
-                                    
-                                else:
-                                    last_id_split = list(streams[key_name].keys())[-1].split('-')
-                                    last_id_split = [int(val) for val in last_id_split]
-                                    id_split[1] = str(last_id_split[1] + 1)
+                                    if key_name in streams.keys():
+                                        last_id_split = list(streams[key_name].keys())[-1].split('-')
+                                        last_id_split = [int(val) for val in last_id_split]
+                                        
+                                        if last_id_split[0] > id_split_int[0] or (last_id_split[0] == id_split_int[0] and last_id_split[1] >= id_split_int[1]):
+                                            notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD is equal or smaller than the target stream top item"))) 
+                                            continue
                                 
-                                id = '-'.join(id_split)
+                                if not key_name in streams.keys():
+                                    streams[key_name] = {}
+                                
+                                if auto_gen:
+                                    key_seconds = [x.split('-')[0] for x in list(streams[key_name].keys())]
+                                    if id_split[0] not in key_seconds:
+                                        id_split[1] = '1' if id_split[0] == '0' else '0'
+                                        
+                                    else:
+                                        last_id_split = list(streams[key_name].keys())[-1].split('-')
+                                        last_id_split = [int(val) for val in last_id_split]
+                                        id_split[1] = str(last_id_split[1] + 1)
+                                    
+                                    id = '-'.join(id_split)
 
                             
                             streams[key_name][id] = {} 
