@@ -343,27 +343,43 @@ def main():
                             total_pairs = int((len(content) - 3) / 2)
                             key_name = content[1]
                             id = content[2]
+                            auto_gen = False
 
                             # validate id:
                             id_split = id.split('-')
+                            if id_split[1] == '*':
+                                auto_gen = True
                             print(f"Current ID : {id_split}")
-                            id_split = [int(val) for val in id_split]
-                            if id_split[0] <= 0 and id_split[1] <= 0:
-                                notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD must be greater than 0-0"))) 
-                                continue
+
+                            if not auto_gen:
+                                id_split_int = [int(val) for val in id_split]
+                                if id_split_int[0] <= 0 and id_split_int[1] <= 0:
+                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD must be greater than 0-0"))) 
+                                    continue
+                                if key_name in streams.keys():
+                                    last_id_split = list(streams[key_name].keys())[-1].split('-')
+                                    last_id_split = [int(val) for val in last_id_split]
+                                    
+                                    if last_id_split[0] > id_split_int[0] or (last_id_split[0] == id_split_int[0] and last_id_split[1] >= id_split_int[1]):
+                                        notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD is equal or smaller than the target stream top item"))) 
+                                        continue
                             
                             if not key_name in streams.keys():
                                 streams[key_name] = {}
-                                streams[key_name][id] = {}
-                            else:
-                                last_id_split = list(streams[key_name].keys())[-1].split('-')
-                                print(f"LAST ID : {last_id_split}")
-                                last_id_split = [int(val) for val in last_id_split]
+                            
+                            if auto_gen:
+                                key_seconds = [x.split('-')[0] for x in list(streams[key_name].keys())]
+                                if id_split[0] not in key_seconds:
+                                    id_split[1] = '1' if id_split[0] == '0' else '0'
+                                    
+                                else:
+                                    last_id_split = list(streams[key_name].keys())[-1].split('-')
+                                    last_id_split = [int(val) for val in last_id_split]
+                                    id_split[1] = str(last_id_split[1] + 1)
                                 
-                                if last_id_split[0] > id_split[0] or (last_id_split[0] == id_split[0] and last_id_split[1] >= id_split[1]):
-                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR The ID specified in XADD is equal or smaller than the target stream top item"))) 
-                                    continue
+                                id = '-'.join(id_split)
 
+                            
                             streams[key_name][id] = {} 
                             
                             for i in range(total_pairs):
