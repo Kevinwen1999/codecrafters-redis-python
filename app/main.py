@@ -392,6 +392,22 @@ def main():
                                 value = content[3 + 2*i + 1]
                                 streams[key_name][id][key] = value
                             notified_socket.sendall(str.encode(parser.to_resp_string(id)))
+                        
+                        elif content[0].lower() == 'xrange':
+                            key_name = content[1]
+                            start_time = [int(x) for x in content[2].split('-')]
+                            end_time = [int(x) for x in content[3].split('-')]
+                            result = []
+                            key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0] and int(x.split('-')[0]) < end_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) >= start_time[1]) or (int(x.split('-')[0]) == end_time[0] and start_time[0] != end_time[0] and int(x.split('-')[1]) <= end_time[1])))]
+                            for second in key_seconds:
+                                key_value = []
+                                for key, value in streams[key_name][second].items():
+                                    key_value.append(key)
+                                    key_value.append(value)
+                                result.append([second, key_value])
+                            
+                            notified_socket.sendall(str.encode(parser.to_resp_array(result)))
+
 
 
                     
