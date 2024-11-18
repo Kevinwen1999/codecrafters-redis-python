@@ -398,7 +398,11 @@ def main():
                             start_time = [int(x) for x in content[2].split('-')]
                             end_time = [int(x) for x in content[3].split('-')]
                             result = []
-                            key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0] and int(x.split('-')[0]) < end_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) >= start_time[1]) or (int(x.split('-')[0]) == end_time[0] and start_time[0] != end_time[0] and int(x.split('-')[1]) <= end_time[1])))]
+                            key_seconds = []
+                            if start_time[0] != end_time[0]:
+                                key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0] and int(x.split('-')[0]) < end_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) >= start_time[1]) or (int(x.split('-')[0]) == end_time[0] and int(x.split('-')[1]) <= end_time[1])))]
+                            else:
+                                key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) >= start_time[1] and int(x.split('-')[1]) <= end_time[1]))]
                             for second in key_seconds:
                                 key_value = []
                                 for key, value in streams[key_name][second].items():
