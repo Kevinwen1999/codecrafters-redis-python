@@ -395,7 +395,7 @@ def main():
                         
                         elif content[0].lower() == 'xrange':
                             key_name = content[1]
-                            start_time = [int(x) for x in content[2].split('-')]
+                            start_time = [-99999, -99999] if content[2] == '-' else [int(x) for x in content[2].split('-')]
                             end_time = [int(x) for x in content[3].split('-')]
                             result = []
                             key_seconds = []
