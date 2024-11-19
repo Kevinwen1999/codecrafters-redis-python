@@ -266,6 +266,15 @@ def main():
                     del multi_queue[notified_socket]
                     silent_set = True
 
+                if commands[0][0].lower() == 'discard':
+                    if notified_socket in multi_queue.keys():
+                        del multi_queue[notified_socket]
+                        notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                    else:
+                        notified_socket.sendall(str.encode(parser.to_resp_error("ERR DISCARD without MULTI")))
+                    continue
+
+
                 if notified_socket in multi_queue.keys():
                     multi_queue[notified_socket] += data
                     notified_socket.sendall(str.encode(parser.to_resp_string("QUEUED")))
