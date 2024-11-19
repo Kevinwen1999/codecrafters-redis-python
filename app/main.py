@@ -172,6 +172,8 @@ def main():
             key_name = content[2 + i]
             start_time = [int(x) for x in content[2 + total_pairs + i].split('-')]
             cur_result = []
+
+            print(f"XADD START TIMES : {start_time}")
             
             key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) > start_time[1])))]
 
@@ -455,6 +457,11 @@ def main():
                                 new_xadd = False
                                 block_option = int(content[2])
                                 content = content[:1] + content[3:]
+                                total_pairs = int((len(content) - 2) / 2)
+                                for i in range(total_pairs):
+                                    key_name = content[2 + i]
+                                    if content[2 + total_pairs + i] == '$':
+                                        content[2 + total_pairs + i] = list(streams[key_name].keys())[-1]
                                 if block_option == 0:
                                     threading.Thread(target=check_xadd_flag, args=(notified_socket, content), daemon=True).start()
                                 else:
