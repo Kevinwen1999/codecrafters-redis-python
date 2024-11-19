@@ -250,12 +250,6 @@ def main():
                     del clients[notified_socket]
                     notified_socket.close()
                     continue
-                
-                if multi_queued:
-                    multi_queue += data
-                    notified_socket.sendall(str.encode(parser.to_resp_string("QUEUED")))
-                    continue
-                commands = parser.parse(data)
 
                 if commands[0][0].lower() == 'exec':
                     if not multi_queued:
@@ -265,6 +259,12 @@ def main():
                         notified_socket.sendall(str.encode(parser.to_resp_array([])))
                         multi_queued = False
                         continue
+
+                if multi_queued:
+                    multi_queue += data
+                    notified_socket.sendall(str.encode(parser.to_resp_string("QUEUED")))
+                    continue
+                commands = parser.parse(data)
 
                 for content in commands:
                     if type(content) is list:
