@@ -7,12 +7,13 @@ from app.redisParser import RedisParser
 from app.rdbReader import RDBParser
 import argparse
 import threading
-from time import time
 from threading import Lock
 
 # Track acknowledgment responses from replicas
 acknowledged_replicas = set()  # A set of replica sockets that have acknowledged
 ack_lock = Lock()  # Lock for thread-safe access
+
+
 
 
 infinite_time = datetime(MAXYEAR - 1, 1, 1, 23, 59, 59, 999999)
@@ -81,7 +82,7 @@ def main():
     clients = {}
     database = {}
     streams = {}
-    last_stream_id = [0, 0]
+    new_xadd = False
 
 
 
@@ -163,7 +164,7 @@ def main():
         except Exception as e:
             print(f"Error connecting to master: {e}")
 
-    def handle_xadd(notified_socket, content):
+    def handle_xread(notified_socket, content):
         print("EXECUTING XADD NOW")
         result = []
         total_pairs = int((len(content) - 2) / 2)
@@ -184,10 +185,20 @@ def main():
             if len(cur_result) > 0:
                 result.append([key_name, cur_result])
         
+
+        nonlocal new_xadd
+        new_xadd = False
+
         if len(result):
             notified_socket.sendall(str.encode(parser.to_resp_array(result)))
         else:
             notified_socket.sendall(str.encode(parser.to_resp_null()))
+
+    def check_xadd_flag(notified_socket, content):
+        nonlocal new_xadd
+        while not new_xadd:
+            time.sleep(0.1)  # Avoid busy-waiting
+        handle_xread(notified_socket, content)
 
     if replicaOption is not None:
         master_host, master_port = args.replicaof.split()
@@ -329,7 +340,7 @@ def main():
                                     print(f"Failed to send ACK to replica: {e}")
 
                             # Wait for acknowledgments or timeout
-                            start_time = time()
+                            start_time = time.time()
                             elapsed_time = 0
 
                             while elapsed_time < timeout_ms / 1000:
@@ -348,7 +359,7 @@ def main():
                                     if len(acknowledged_replicas) >= num_replicas:
                                         break
 
-                                elapsed_time = time() - start_time
+                                elapsed_time = time.time() - start_time
 
                             # Respond with the number of replicas that acknowledged
                             with ack_lock:
@@ -370,7 +381,7 @@ def main():
                             auto_gen = False
 
                             if id == '*':
-                                current_unix_time_ms = int(time() * 1000)
+                                current_unix_time_ms = int(time.time() * 1000)
                                 id = f"{str(current_unix_time_ms)}-0"
                                 if not key_name in streams.keys():
                                     streams[key_name] = {}
@@ -415,7 +426,10 @@ def main():
                                 key = content[3 + 2*i]
                                 value = content[3 + 2*i + 1]
                                 streams[key_name][id][key] = value
+
+                            new_xadd = True
                             notified_socket.sendall(str.encode(parser.to_resp_string(id)))
+                            
                         
                         elif content[0].lower() == 'xrange':
                             key_name = content[1]
@@ -435,14 +449,18 @@ def main():
                                 result.append([second, key_value])
                             
                             notified_socket.sendall(str.encode(parser.to_resp_array(result)))
-
+                            
                         elif content[0].lower() == 'xread':
                             if content[1].lower() == 'block':
+                                new_xadd = False
                                 block_option = int(content[2])
                                 content = content[:1] + content[3:]
-                                threading.Timer(block_option / 1000, handle_xadd, args=(notified_socket, content)).start()
+                                if block_option == 0:
+                                    threading.Thread(target=check_xadd_flag, args=(notified_socket, content), daemon=True).start()
+                                else:
+                                    threading.Timer(block_option / 1000, handle_xread, args=(notified_socket, content)).start()
                             else:
-                                handle_xadd(notified_socket, content)
+                                handle_xread(notified_socket, content)
 
 
 
