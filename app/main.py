@@ -18,6 +18,9 @@ ack_lock = Lock()  # Lock for thread-safe access
 
 infinite_time = datetime(MAXYEAR - 1, 1, 1, 23, 59, 59, 999999)
 
+class MyCustomException(Exception):
+    pass
+
 def main():
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
@@ -515,8 +518,14 @@ def main():
                                         notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
                                     else:
                                         concat_response.append(int(database[keyName][0]))
-                                except ValueError:
-                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR value is not an integer or out of range")))
+                                except ValueError as e:
+                                    if not silent_set:
+                                        notified_socket.sendall(str.encode(parser.to_resp_error("ERR value is not an integer or out of range")))
+                                    else:
+                                        try:
+                                            raise MyCustomException("ERR value is not an integer or out of range")
+                                        except MyCustomException as e:
+                                            concat_response.append(e)
                             else:
                                 expire_time = infinite_time
                                 database[content[1]] = ['1', expire_time]
