@@ -163,7 +163,31 @@ def main():
         except Exception as e:
             print(f"Error connecting to master: {e}")
 
+    def handle_xadd(notified_socket, content):
+        print("EXECUTING XADD NOW")
+        result = []
+        total_pairs = int((len(content) - 2) / 2)
+        for i in range(total_pairs):
+            key_name = content[2 + i]
+            start_time = [int(x) for x in content[2 + total_pairs + i].split('-')]
+            cur_result = []
+            
+            key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) > start_time[1])))]
 
+            for second in key_seconds:
+                key_value = []
+                for key, value in streams[key_name][second].items():
+                    key_value.append(key)
+                    key_value.append(value)
+                cur_result.append([second, key_value])
+
+            if len(cur_result) > 0:
+                result.append([key_name, cur_result])
+        
+        if len(result):
+            notified_socket.sendall(str.encode(parser.to_resp_array(result)))
+        else:
+            notified_socket.sendall(str.encode(parser.to_resp_null()))
 
     if replicaOption is not None:
         master_host, master_port = args.replicaof.split()
@@ -413,25 +437,12 @@ def main():
                             notified_socket.sendall(str.encode(parser.to_resp_array(result)))
 
                         elif content[0].lower() == 'xread':
-                            result = []
-                            total_pairs = int((len(content) - 2) / 2)
-                            for i in range(total_pairs):
-                                key_name = content[2 + i]
-                                start_time = [int(x) for x in content[2 + total_pairs + i].split('-')]
-                                cur_result = []
-                                
-                                key_seconds = [x for x in list(streams[key_name].keys()) if ((int(x.split('-')[0]) > start_time[0]) or ((int(x.split('-')[0]) == start_time[0] and int(x.split('-')[1]) > start_time[1])))]
-
-                                for second in key_seconds:
-                                    key_value = []
-                                    for key, value in streams[key_name][second].items():
-                                        key_value.append(key)
-                                        key_value.append(value)
-                                    cur_result.append([second, key_value])
-
-                                result.append([key_name, cur_result])
-                            
-                            notified_socket.sendall(str.encode(parser.to_resp_array(result)))
+                            if content[1].lower() == 'block':
+                                block_option = int(content[2])
+                                content = content[:1] + content[3:]
+                                threading.Timer(block_option / 1000, handle_xadd, args=(notified_socket, content)).start()
+                            else:
+                                handle_xadd(notified_socket, content)
 
 
 
