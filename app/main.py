@@ -83,8 +83,7 @@ def main():
     database = {}
     streams = {}
     new_xadd = False
-    multi_queue = ""
-    multi_queued = False
+    multi_queue = {}
 
 
 
@@ -254,16 +253,16 @@ def main():
                 commands = parser.parse(data)
 
                 if commands[0][0].lower() == 'exec':
-                    if not multi_queued:
+                    if not notified_socket in multi_queue.keys():
                         notified_socket.sendall(str.encode(parser.to_resp_error("ERR EXEC without MULTI")))
                         continue
-                    if len(multi_queue) == 0:
+                    if len(multi_queue[notified_socket]) == 0:
                         notified_socket.sendall(str.encode(parser.to_resp_array([])))
-                        multi_queued = False
+                        del multi_queue[notified_socket]
                         continue
 
-                if multi_queued:
-                    multi_queue += data
+                if notified_socket in multi_queue.keys():
+                    multi_queue[notified_socket] += data
                     notified_socket.sendall(str.encode(parser.to_resp_string("QUEUED")))
                     continue
                 
@@ -504,8 +503,7 @@ def main():
                                     pending_writes += 1
 
                         elif content[0].lower() == 'multi':
-                            multi_queue = b""
-                            multi_queued = True
+                            multi_queue[notified_socket] = b""
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
 
 
