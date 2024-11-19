@@ -261,6 +261,10 @@ def main():
                     if not multi_queued:
                         notified_socket.sendall(str.encode(parser.to_resp_error("ERR EXEC without MULTI")))
                         continue
+                    if len(multi_queue) == 0:
+                        notified_socket.sendall(str.encode(parser.to_resp_array([])))
+                        multi_queued = False
+                        continue
 
                 for content in commands:
                     if type(content) is list:
