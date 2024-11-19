@@ -475,6 +475,13 @@ def main():
                                     notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
                                 except ValueError:
                                     notified_socket.sendall(str.encode(parser.to_resp_string("none")))
+                            else:
+                                expire_time = infinite_time
+                                database[content[1]] = ['1', expire_time]
+                                notified_socket.sendall(str.encode(parser.to_resp_integer("1")))
+                                # Increment pending writes
+                                with pending_writes_lock:
+                                    pending_writes += 1
 
 
                     
