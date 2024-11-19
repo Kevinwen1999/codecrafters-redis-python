@@ -474,7 +474,7 @@ def main():
                                     database[keyName][0] = str(value)
                                     notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
                                 except ValueError:
-                                    notified_socket.sendall(str.encode(parser.to_resp_string("none")))
+                                    notified_socket.sendall(str.encode(parser.to_resp_error("ERR value is not an integer or out of range")))
                             else:
                                 expire_time = infinite_time
                                 database[content[1]] = ['1', expire_time]
