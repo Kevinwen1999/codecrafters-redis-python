@@ -251,6 +251,8 @@ def main():
                     continue
                 
                 commands = parser.parse(data)
+                silent_set = False
+                concat_response = []
 
                 if commands[0][0].lower() == 'exec':
                     if not notified_socket in multi_queue.keys():
@@ -260,6 +262,9 @@ def main():
                         notified_socket.sendall(str.encode(parser.to_resp_array([])))
                         del multi_queue[notified_socket]
                         continue
+                    commands = parser.parse(multi_queue[notified_socket])
+                    del multi_queue[notified_socket]
+                    silent_set = True
 
                 if notified_socket in multi_queue.keys():
                     multi_queue[notified_socket] += data
@@ -295,7 +300,10 @@ def main():
                                 expire_time = datetime.now() + timedelta(microseconds=int(content[4]))
                             # print(expire_time)
                             database[content[1]] = [content[2], expire_time]
-                            notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                            if not silent_set:
+                                notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+                            else:
+                                concat_response.append("OK")
                             # Increment pending writes
                             with pending_writes_lock:
                                 pending_writes += 1
@@ -304,7 +312,10 @@ def main():
                             keyName = content[1]
                             current_time = datetime.now()
                             if keyName in database.keys() and (current_time <= database[keyName][1] + timedelta(milliseconds=100)):
-                                notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
+                                if not silent_set:
+                                    notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
+                                else:
+                                    concat_response.append(database[keyName][0])
                             else:
                                 notified_socket.sendall(str.encode(parser.to_resp_null()))
 
@@ -491,13 +502,19 @@ def main():
                                     value = int(database[keyName][0])
                                     value += 1
                                     database[keyName][0] = str(value)
-                                    notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
+                                    if not silent_set:
+                                        notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
+                                    else:
+                                        concat_response.append(int(database[keyName][0]))
                                 except ValueError:
                                     notified_socket.sendall(str.encode(parser.to_resp_error("ERR value is not an integer or out of range")))
                             else:
                                 expire_time = infinite_time
                                 database[content[1]] = ['1', expire_time]
-                                notified_socket.sendall(str.encode(parser.to_resp_integer("1")))
+                                if not silent_set:
+                                    notified_socket.sendall(str.encode(parser.to_resp_integer("1")))
+                                else:
+                                    concat_response.append(1)
                                 # Increment pending writes
                                 with pending_writes_lock:
                                     pending_writes += 1
@@ -505,6 +522,9 @@ def main():
                         elif content[0].lower() == 'multi':
                             multi_queue[notified_socket] = b""
                             notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
+
+                if silent_set:
+                        notified_socket.sendall(str.encode(parser.to_resp(concat_response)))
 
 
                     
