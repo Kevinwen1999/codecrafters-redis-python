@@ -284,9 +284,6 @@ def main():
                         elif content[0].lower() == "get":
                             keyName = content[1]
                             current_time = datetime.now()
-                            """ print(current_time)
-                            print(database[keyName][1])
-                            print(current_time - database[keyName][1]) """
                             if keyName in database.keys() and (current_time <= database[keyName][1] + timedelta(milliseconds=100)):
                                 notified_socket.sendall(str.encode(parser.to_resp_string(database[keyName][0])))
                             else:
@@ -431,8 +428,7 @@ def main():
 
                             new_xadd = True
                             notified_socket.sendall(str.encode(parser.to_resp_string(id)))
-                            
-                        
+                                                  
                         elif content[0].lower() == 'xrange':
                             key_name = content[1]
                             start_time = [-99999, -99999] if content[2] == '-' else [int(x) for x in content[2].split('-')]
@@ -469,6 +465,16 @@ def main():
                             else:
                                 handle_xread(notified_socket, content)
 
+                        elif content[0].lower() == 'incr':
+                            keyName = content[1]
+                            if keyName in database.keys():
+                                try:
+                                    value = int(database[keyName][0])
+                                    value += 1
+                                    database[keyName][0] = str(value)
+                                    notified_socket.sendall(str.encode(parser.to_resp_integer(database[keyName][0])))
+                                except ValueError:
+                                    notified_socket.sendall(str.encode(parser.to_resp_string("none")))
 
 
                     
