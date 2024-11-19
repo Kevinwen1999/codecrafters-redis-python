@@ -83,6 +83,8 @@ def main():
     database = {}
     streams = {}
     new_xadd = False
+    multi_queue = ""
+    multi_queued = False
 
 
 
@@ -246,6 +248,10 @@ def main():
                     socket_list.remove(notified_socket)
                     del clients[notified_socket]
                     notified_socket.close()
+                    continue
+                if multi_queued:
+                    multi_queue += data
+                    notified_socket.sendall(str.encode(parser.to_resp_string("QUEUED")))
                     continue
                 commands = parser.parse(data)
                 for content in commands:
@@ -482,6 +488,11 @@ def main():
                                 # Increment pending writes
                                 with pending_writes_lock:
                                     pending_writes += 1
+
+                        elif content[0].lower() == 'multi':
+                            multi_queue = b""
+                            multi_queued = True
+                            notified_socket.sendall(str.encode(parser.to_resp_string("OK")))
 
 
                     
